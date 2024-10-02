@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { CreateDiarioDto } from './dto/create-diario.dto';
 import { UpdateDiarioDto } from './dto/update-diario.dto';
-import { AlmacenamientoService } from 'src/almacenamiento/almacenamiento.service';
 import { Diario } from './entities/diario.entity';
 import { RegisterNewsDto } from './dto/register-news.dto';
 import { News } from './entities/news.entity';
+import { AlmacenamientoService } from './services/almacenamiento.service';
 
 @Injectable()
 export class DiariosService {
@@ -70,6 +70,16 @@ export class DiariosService {
       return "La fecha no puede ser del pasado";
     }
     
+    for (const news of diario.news) {
+      if (news.date.toISOString() === newsDate.toISOString()) {
+        news.amount += amount;
+        this.almacenamiento.guardarDatos();
+        return diario;
+      }
+    }
+
+    
+
     const news: News = { date, amount };
     diario.news.push(news);
     this.almacenamiento.guardarDatos();

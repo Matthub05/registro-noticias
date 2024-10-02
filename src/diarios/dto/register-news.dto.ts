@@ -10,7 +10,12 @@ export class RegisterNewsDto {
 
   @IsNotEmpty()
   @IsDateString()
-  @ApiProperty({description: 'La fecha de la noticia'})
+  @ApiProperty({
+    description: 'La fecha de la noticia',
+    example: '2024-10-01',
+    format: 'YYYY-MM-DD',
+    required: true
+  })
   date: Date;
 
   @IsNotEmpty()
