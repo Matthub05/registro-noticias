@@ -1,10 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CreateDiarioDto } from './dto/create-diario.dto';
 import { UpdateDiarioDto } from './dto/update-diario.dto';
 import { Diario } from './entities/diario.entity';
 import { RegisterNewsDto } from './dto/register-news.dto';
 import { News } from './entities/news.entity';
 import { AlmacenamientoService } from './services/almacenamiento.service';
+import { getAverage, getPercentage } from 'src/helpers/math-helper';
 
 @Injectable()
 export class DiariosService {
@@ -32,14 +33,14 @@ export class DiariosService {
   }
 
   findOne(id: number) {
-    return this.diarios.find(d => d.id === id);
+    const diario = this.diarios.find(d => d.id === id);
+    if (!diario) throw new NotFoundException("Diario no encontrado");
+    return diario;
   }
 
   update(id: number, updateDiarioDto: UpdateDiarioDto) {
     const diario = this.findOne(id);
-    if (!diario) {
-      return "Diario no encontrado";
-    }
+    if (!diario) throw new NotFoundException("Diario no encontrado");
     const { name, description } = updateDiarioDto;
     diario.name = name;
     diario.description = description;
@@ -49,41 +50,56 @@ export class DiariosService {
 
   remove(id: number) {
     const index = this.diarios.findIndex(d => d.id === id);
-    if (index === -1) {
-      return "Diario no encontrado";
-    }
+    if (index === -1) throw new NotFoundException("Diario no encontrado");
+
     this.diarios.splice(index, 1);
+
     this.almacenamiento.guardarDatos();
-    return "Diario eliminado";
+    return { message: "Diario eliminado exitosamente" };
   }
 
   registerNews(registerNews: RegisterNewsDto) {
     const { idDiario, date, amount } = registerNews;
     const diario = this.findOne(idDiario);
-    if (!diario) {
-      return "Diario no encontrado";
-    }
+    if (!diario) throw new NotFoundException("Diario no encontrado");
   
     const currentDate = new Date();
     const newsDate = new Date(date);
     if (newsDate < currentDate) {
-      return "La fecha no puede ser del pasado";
+      throw new ConflictException("La fecha no puede ser del pasado");
     }
     
     for (const news of diario.news) {
-      if (news.date.toISOString() === newsDate.toISOString()) {
+      if (news.date == newsDate) {
         news.amount += amount;
         this.almacenamiento.guardarDatos();
         return diario;
       }
     }
 
-    
-
     const news: News = { date, amount };
+    if (!this.validarEstadisticas(news, diario.news)) {
+      throw new ConflictException("La noticia no cumple con las estadísticas");
+    }
+
     diario.news.push(news);
     this.almacenamiento.guardarDatos();
     return diario;
+  }
+
+  private validarEstadisticas(nuevaNoticia: News, noticias: News[]): boolean {
+    const cantidades = noticias.map(n => n.amount);
+    
+    // Si hay menos de 3 noticias, no se valida
+    if (cantidades.length < 3) {
+      return true;
+    }
+
+    // Calcular el promedio y validar si la nueva noticia es mayor al 80% del promedio
+    const promedio = getAverage(cantidades);
+    if (getPercentage(80, promedio) <= nuevaNoticia.amount) {
+      return true;
+    }
   }
 
   private getUltimoDiario(): Diario {
