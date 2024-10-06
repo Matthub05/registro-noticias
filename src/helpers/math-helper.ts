@@ -130,7 +130,7 @@ export function getVariance(values: number[], params: { average?: number; lowerL
  * @param tdf La tabla de distribución de frecuencias que contiene las categorías en las cuales buscar.
  * @returns TRUE si el valor se encuentra dentro de la categoría de mayor frecuencia, FALSE en caso contrario.
  */
-export function isBelongToHigherFrequency(
+export function isInHigherFrequency(
   value: number,
   tdf: { lowerLimit: number; upperLimit: number; hi: number }[]
 ): boolean {
@@ -148,4 +148,35 @@ export function isBelongToHigherFrequency(
  */
 function cleanFloat(value: number): number {
   return Math.floor(value);
+}
+
+/**
+ * Calcula el rango intercuartil.
+ * @param numbers Números para el cálculo.
+ * @returns El rango intercuartil.
+ */
+export function getInterquartileRange(numbers: number[]): [number, number] {
+  const sorted = [...numbers].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  
+  const lowerHalf = sorted.slice(0, mid);
+  const upperHalf = sorted.slice(mid + (sorted.length % 2 === 0 ? 0 : 1));
+
+  const q1 = getMedian(lowerHalf);
+  const q3 = getMedian(upperHalf);
+
+  return [q1, q3];
+}
+
+/**
+ * Calcula la mediana.
+ * @param numbers Números para el cálculo.
+ * @returns La mediana.
+ */
+function getMedian(numbers: number[]): number {
+  const mid = Math.floor(numbers.length / 2);
+  if (numbers.length % 2 === 0) {
+    return (numbers[mid - 1] + numbers[mid]) / 2;
+  }
+  return numbers[mid];
 }
