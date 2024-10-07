@@ -19,6 +19,7 @@ import {
   isInHigherFrequency,
 } from 'src/helpers/math-helper';
 import { NotificacionService } from 'src/notificacion/notificacion.service';
+import { CreateNotificationDto } from 'src/notificacion/dto/create-notification.dto';
 
 @Injectable()
 export class DiariosService {
@@ -115,9 +116,10 @@ export class DiariosService {
     const limite = getPercentage(80, promedio);
 
     if (amount < limite) {
-      await this.notificacionService.sendNotification(
-        `La cantidad de artículos (${amount}) está por debajo del umbral esperado (${limite.toFixed(2)}) para el diario ${diario.name}.`,
-      );
+      const notificacion: CreateNotificationDto = {
+        message: `La cantidad de artículos (${amount}) está por debajo del umbral esperado (${limite.toFixed(2)}) para el diario ${diario.name}.`,
+      };
+      await this.notificacionService.sendNotification(notificacion);
     }
   }
 

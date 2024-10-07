@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Post } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { NotificacionService } from './notificacion.service';
+import { CreateNotificationDto } from './dto/create-notification.dto';
 
 @ApiTags('Notificaciones')
 @Controller('notificacion')
@@ -19,7 +20,7 @@ export class NotificacionController {
     status: 201,
     description: 'La notificación ha sido creada',
   })
-  createNotification(@Body('message') message: string) {
+  createNotification(@Body() message: CreateNotificationDto) {
     return this.notificacionService.sendNotification(message);
   }
 
