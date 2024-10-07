@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { NotificacionService } from './notificacion.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
@@ -12,6 +12,12 @@ export class NotificacionController {
   @ApiOperation({ summary: 'Listar todas las notificaciones' })
   getNotifications() {
     return this.notificacionService.getNotifications();
+  }
+
+  @Get(':idDiario')
+  @ApiOperation({ summary: 'Listar todas las notificaciones por diario' })
+  getNotificationsByDiario(@Param('idDiario') id: string) {
+    return this.notificacionService.getNotificationsByDiario(+id);
   }
 
   @Post()

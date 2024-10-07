@@ -72,7 +72,7 @@ export class DiariosService {
     return { message: 'Diario eliminado exitosamente' };
   }
 
-  async registerNews(registerNews: RegisterNewsDto) {
+  registerNews(registerNews: RegisterNewsDto) {
     const { idDiario, date, amount } = registerNews;
     const diario = this.findOne(idDiario);
     if (!diario) throw new NotFoundException('Diario no encontrado');
@@ -84,46 +84,36 @@ export class DiariosService {
     }
 
     for (const news of diario.news) {
-      if (news.date.getTime() === newsDate.getTime()) {
+      if (news.date.toString() == date.toString()) {
         news.amount += amount;
         this.almacenamiento.guardarDiarios();
-        await this.checkAndNotify(diario, newsDate, news.amount);
-        return diario;
+        this.notificacionService.sendNotification({
+          idDiario,
+          message: 'Noticia actualizada',
+        });
+        return news;
       }
     }
 
     const news: News = { date, amount };
-    if (!this.validarEstadisticas(news, diario.news)) {
+    if (!this.validarEstadisticas(news, diario.news, idDiario)) {
       throw new ConflictException('La noticia no cumple con las estadísticas');
     }
 
     diario.news.push(news);
     this.almacenamiento.guardarDiarios();
-    await this.checkAndNotify(diario, newsDate, amount);
-    return diario;
+    this.notificacionService.sendNotification({
+      idDiario,
+      message: 'Noticia registrada',
+    });
+    return news;
   }
 
-  private async checkAndNotify(diario: Diario, date: Date, amount: number) {
-    const seisMesesAtras = new Date();
-    seisMesesAtras.setMonth(seisMesesAtras.getMonth() - 6);
-
-    const noticiasRelevantes = diario.news.filter(
-      (news) =>
-        news.date >= seisMesesAtras && news.date.getDay() === date.getDay(),
-    );
-
-    const promedio = getAverage(noticiasRelevantes.map((n) => n.amount));
-    const limite = getPercentage(80, promedio);
-
-    if (amount < limite) {
-      const notificacion: CreateNotificationDto = {
-        message: `La cantidad de artículos (${amount}) está por debajo del umbral esperado (${limite.toFixed(2)}) para el diario ${diario.name}.`,
-      };
-      await this.notificacionService.sendNotification(notificacion);
-    }
-  }
-
-  private validarEstadisticas(nuevaNoticia: News, noticias: News[]): boolean {
+  private validarEstadisticas(
+    nuevaNoticia: News,
+    noticias: News[],
+    idDiario: number,
+  ): boolean {
     const cantidades = noticias.map((n) => n.amount);
 
     // Si hay menos de 3 noticias, no se valida
@@ -131,11 +121,21 @@ export class DiariosService {
       return true;
     }
 
+    console.warn('Validando estadísticas');
     // Calcular el promedio y validar si la nueva noticia es mayor al 80% del promedio
     const promedio = getAverage(cantidades);
-    if (getPercentage(80, promedio) <= nuevaNoticia.amount) {
+    if (
+      getPercentage(80, promedio) <= nuevaNoticia.amount &&
+      nuevaNoticia.amount <= getPercentage(120, promedio)
+    ) {
       return true;
     }
+    console.warn(
+      'El promedio es menor al 80% o mayor al 120% de la nueva noticia',
+    );
+
+    let mensajeNotificacion =
+      'La noticia no cumple con las estadísticas. Razón: ';
 
     // Calcular el coeficiente de variación y validar si es mayor al 25%
     const desviacionEstandar = getStandardDeviation(
@@ -149,16 +149,80 @@ export class DiariosService {
 
     if (coeficienteVariacion > 0.25) {
       // Si el coeficiente de variación es mayor al 25%, se revisa rango intercuartil
+      console.warn('El coeficiente de variación es mayor al 25%');
+
       const [q1, q3] = getInterquartileRange([
         ...cantidades,
         nuevaNoticia.amount,
       ]);
+
+      if (nuevaNoticia.amount < q1) {
+        let error = 'La nueva noticia es menor al primer cuartil';
+        mensajeNotificacion += error;
+        this.notificacionService.sendNotification({
+          idDiario,
+          message: mensajeNotificacion,
+        });
+        console.error(error);
+      } else {
+        console.log(
+          '\x1b[32m%s\x1b[0m',
+          'La nueva noticia es mayor al primer cuartil',
+        );
+      }
       return nuevaNoticia.amount >= q1;
     } else {
       // Si el coeficiente de variación es menor al 25%, se revisa tabla de frecuencias
+      console.warn('El coeficiente de variación es menor al 25%');
+
       const tablaFrecuencias = getFrequencyDistributionTable(cantidades);
+
+      if (!isInHigherFrequency(nuevaNoticia.amount, tablaFrecuencias)) {
+        let error =
+          'La nueva noticia no está en la categoría de mayor frecuencia';
+        mensajeNotificacion += error;
+        this.notificacionService.sendNotification({
+          idDiario,
+          message: mensajeNotificacion,
+        });
+        console.error(error);
+      } else {
+        console.log(
+          '\x1b[32m%s\x1b[0m',
+          'La nueva noticia está en la categoría de mayor frecuencia',
+        );
+      }
       return isInHigherFrequency(nuevaNoticia.amount, tablaFrecuencias);
     }
+  }
+
+  getReport(diarioId: number) {
+    const diario = this.findOne(diarioId);
+    const cantidades = diario.news.map((n) => n.amount);
+
+    const promedio = getAverage(cantidades);
+    const promedio80 = getPercentage(80, promedio);
+    const promedio120 = getPercentage(120, promedio);
+    const desviacionEstandar = getStandardDeviation(cantidades, {
+      average: promedio,
+    });
+    const coeficienteVariacion = getCoefficientOfVariation(
+      desviacionEstandar,
+      promedio,
+    );
+    const [q1, q3] = getInterquartileRange(cantidades);
+    const tablaFrecuencias = getFrequencyDistributionTable(cantidades);
+
+    return {
+      promedio,
+      promedio80,
+      promedio120,
+      desviacionEstandar,
+      coeficienteVariacion,
+      q1,
+      q3,
+      tablaFrecuencias,
+    };
   }
 
   getWeeklyReport(diarioId: number) {

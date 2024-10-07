@@ -14,18 +14,24 @@ export class NotificacionService {
   async sendNotification(
     createNotification: CreateNotificationDto,
   ): Promise<void> {
-    const { message } = createNotification;
+    const { idDiario, message } = createNotification;
     const notification: Notification = {
+      idDiario,
       message,
       timestamp: new Date(),
     };
     this.notifications.push(notification);
     this.almacenamiento.guardarNotificaciones();
-    console.log('New notification:', notification);
   }
 
   getNotifications(): Notification[] {
     return this.notifications;
+  }
+
+  getNotificationsByDiario(idDiario: number): Notification[] {
+    return this.notifications.filter(
+      (notification) => notification.idDiario === idDiario,
+    );
   }
 
   clearNotifications(): void {
