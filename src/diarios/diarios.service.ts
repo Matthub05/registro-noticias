@@ -121,7 +121,7 @@ export class DiariosService {
       return true;
     }
 
-    console.warn('Validando estadísticas');
+    console.warn('\nValidando estadísticas');
     // Calcular el promedio y validar si la nueva noticia es mayor al 80% del promedio
     const promedio = getAverage(cantidades);
     if (
@@ -135,7 +135,7 @@ export class DiariosService {
     );
 
     let mensajeNotificacion =
-      'La noticia no cumple con las estadísticas. Razón: ';
+      'La cantidad de noticias no cumple con las estadísticas. Razón: ';
 
     // Calcular el coeficiente de variación y validar si es mayor al 25%
     const desviacionEstandar = getStandardDeviation(
@@ -157,20 +157,19 @@ export class DiariosService {
       ]);
 
       if (nuevaNoticia.amount < q1) {
-        let error = 'La nueva noticia es menor al primer cuartil';
+        let error =
+          'La cantidad de noticias subidas está por debajo de lo habitual en comparación con otros días';
         mensajeNotificacion += error;
         this.notificacionService.sendNotification({
           idDiario,
           message: mensajeNotificacion,
         });
         console.error(error);
+        return false;
       } else {
-        console.log(
-          '\x1b[32m%s\x1b[0m',
-          'La nueva noticia es mayor al primer cuartil',
-        );
+        this.logSuccessMessage('La nueva noticia es mayor al primer cuartil');
+        return true;
       }
-      return nuevaNoticia.amount >= q1;
     } else {
       // Si el coeficiente de variación es menor al 25%, se revisa tabla de frecuencias
       console.warn('El coeficiente de variación es menor al 25%');
@@ -179,20 +178,20 @@ export class DiariosService {
 
       if (!isInHigherFrequency(nuevaNoticia.amount, tablaFrecuencias)) {
         let error =
-          'La nueva noticia no está en la categoría de mayor frecuencia';
+          'La cantidad de noticias subidas no es la más común entre las que se han usado';
         mensajeNotificacion += error;
         this.notificacionService.sendNotification({
           idDiario,
           message: mensajeNotificacion,
         });
         console.error(error);
+        return false;
       } else {
-        console.log(
-          '\x1b[32m%s\x1b[0m',
+        this.logSuccessMessage(
           'La nueva noticia está en la categoría de mayor frecuencia',
         );
+        return true;
       }
-      return isInHigherFrequency(nuevaNoticia.amount, tablaFrecuencias);
     }
   }
 
@@ -225,24 +224,65 @@ export class DiariosService {
     };
   }
 
-  getWeeklyReport(diarioId: number) {
-    const diario = this.findOne(diarioId);
-    const hoy = new Date();
-    const semanaPasada = new Date(hoy.getTime() - 7 * 24 * 60 * 60 * 1000);
+  getAllReportsLastWeek() {
+    let reports = [];
+    for (const diario of this.diarios) {
+      reports.push({
+        name: diario.name,
+        ...this.getReportLastWeekByDiario(diario.id),
+      });
+    }
+    return reports;
+  }
 
-    const noticiasSemana = diario.news.filter(
-      (news) => news.date >= semanaPasada && news.date <= hoy,
+  getReportLastWeekByDiario(idDiario: number) {
+    const diario = this.findOne(idDiario);
+    const currentDate = new Date();
+    const lastWeek = new Date(currentDate);
+    lastWeek.setDate(currentDate.getDate() - 7);
+
+    const noticiasSemana = [];
+    for (const news of diario.news) {
+      const newsDate = new Date(news.date);
+      if (newsDate >= lastWeek && newsDate <= currentDate) {
+        noticiasSemana.push(news);
+      }
+    }
+
+    const cantidades = noticiasSemana.map((n) => n.amount);
+
+    const promedio = getAverage(cantidades);
+    const promedio80 = getPercentage(80, promedio);
+    const promedio120 = getPercentage(120, promedio);
+    const desviacionEstandar = getStandardDeviation(cantidades, {
+      average: promedio,
+    });
+    const coeficienteVariacion = getCoefficientOfVariation(
+      desviacionEstandar,
+      promedio,
     );
+    const [q1, q3] = getInterquartileRange(cantidades);
+    const tablaFrecuencias = getFrequencyDistributionTable(cantidades);
 
-    return noticiasSemana.map((news) => ({
-      date: news.date,
-      amount: news.amount,
-    }));
+    return {
+      promedio,
+      promedio80,
+      promedio120,
+      desviacionEstandar,
+      coeficienteVariacion,
+      q1,
+      q3,
+      tablaFrecuencias,
+    };
   }
 
   private getUltimoDiario(): Diario {
     return this.diarios.length >= 0
       ? this.diarios[this.diarios.length - 1]
       : null;
+  }
+
+  private logSuccessMessage(message: string) {
+    console.log('\x1b[32m%s\x1b[0m', message);
   }
 }

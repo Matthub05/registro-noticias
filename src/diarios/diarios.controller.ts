@@ -82,7 +82,7 @@ export class DiariosController {
     return this.diariosService.registerNews(body);
   }
 
-  @Get('reporte/:id')
+  @Get('reporte/todos/:id')
   @ApiOperation({
     summary: 'Obtener reporte de un diario por su id',
   })
@@ -98,7 +98,16 @@ export class DiariosController {
   })
   @ApiResponse({ status: 404, description: 'Diario no encontrado' })
   @ApiResponse({ status: 200, description: 'Reporte encontrado' })
-  getWeeklyReport(@Param('id') id: string) {
-    return this.diariosService.getWeeklyReport(+id);
+  getReportLastWeekByDiario(@Param('id') id: string) {
+    return this.diariosService.getReportLastWeekByDiario(+id);
+  }
+
+  @Get('reporte/ultimaSemanaTodos')
+  @ApiOperation({
+    summary: 'Obtener reporte de la última semana de cada diario',
+  })
+  @ApiResponse({ status: 200, description: 'Reporte encontrado' })
+  getAllReportsLastWeek() {
+    return this.diariosService.getAllReportsLastWeek();
   }
 }
